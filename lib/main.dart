@@ -1,10 +1,13 @@
+import 'nexa_backend.dart';
 import 'package:flutter/material.dart';
 
 const green = Color(0xFF00F5A0);
 const background = Color(0xFF080B10);
 const panel = Color(0xFF121923);
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NexaBackend.initialize();
   runApp(const NexaApp());
 }
 
