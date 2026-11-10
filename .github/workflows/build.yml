@@ -28,6 +28,29 @@ jobs:
       - name: Generate Android project
         run: flutter create . --platforms=android,web,windows
 
+      - name: Configure Android OAuth callback
+        # NEXA_ANDROID_CALLBACK_FINAL
+        run: |
+          python3 - <<'PYCODE'
+          from pathlib import Path
+          p = Path("android/app/src/main/AndroidManifest.xml")
+          s = p.read_text()
+          if "io.supabase.nexa" not in s:
+              intent = '''
+                      <intent-filter>
+                          <action android:name="android.intent.action.VIEW" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                          <category android:name="android.intent.category.BROWSABLE" />
+                          <data android:scheme="io.supabase.nexa" android:host="login-callback" />
+                      </intent-filter>
+              '''
+              if "</activity>" not in s:
+                  raise SystemExit("Activity not found in manifest")
+              s = s.replace("</activity>", intent + "\\n        </activity>", 1)
+              p.write_text(s)
+          print("Android callback configured")
+          PYCODE
+
       - name: Install dependencies
         run: flutter pub get
 

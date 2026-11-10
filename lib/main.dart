@@ -67,6 +67,23 @@ class _LoginPageState extends State<LoginPage> {
   bool register = false;
   bool busy = false;
 
+
+  // NEXA_GOOGLE_LOGIN_FINAL
+  Future<void> nexaGoogleLogin() async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await db.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'io.supabase.nexa://login-callback/',
+      );
+    } catch (e) {
+      if (mounted) show('خطا در ورود گوگل: $e');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   Future<void> submit() async {
     if (email.text.trim().isEmpty || password.text.length < 8) {
       show('ایمیل و رمز حداقل ۸ کاراکتری وارد کن.');
@@ -116,6 +133,24 @@ class _LoginPageState extends State<LoginPage> {
               )),
             const Text('MESSENGER'),
             const SizedBox(height: 40),
+            // NEXA_GOOGLE_LOGIN_FINAL
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton.icon(
+                onPressed: busy ? null : nexaGoogleLogin,
+                icon: const Text(
+                  'G',
+                  style: TextStyle(
+                    color: Color(0xFF4285F4),
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                label: const Text('ورود با حساب گوگل'),
+              ),
+            ),
+            const SizedBox(height: 20),
             TextField(
               controller: email,
               keyboardType: TextInputType.emailAddress,
