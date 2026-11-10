@@ -1,15 +1,23 @@
-import 'nexa_backend.dart';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-const green = Color(0xFF00F5A0);
-const background = Color(0xFF080B10);
-const panel = Color(0xFF121923);
+const supabaseUrl = 'https://qscxdvikapcqwevcgbhd.supabase.co';
+const supabaseKey = 'sb_publishable_LFZQ0SS5nsqcJ_otNVRvVA_2i3p6EfE';
+
+final supabase = Supabase.instance.client;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await NexaBackend.initialize();
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseKey,
+  );
   runApp(const NexaApp());
 }
+
+const green = Color(0xFF00FF88);
+const background = Color(0xFF080D0B);
+const panel = Color(0xFF121B16);
 
 class NexaApp extends StatelessWidget {
   const NexaApp({super.key});
@@ -18,17 +26,41 @@ class NexaApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'NEXA Messenger',
+      title: 'NEXA MESSENGER',
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: background,
-        colorScheme: const ColorScheme.dark(
-          primary: green,
-          surface: panel,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: green,
+          brightness: Brightness.dark,
         ),
-        useMaterial3: true,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: panel,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none,
+          ),
+        ),
       ),
-      home: const LoginPage(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: supabase.auth.onAuthStateChange,
+      builder: (context, snapshot) {
+        if (supabase.auth.currentUser == null) {
+          return const LoginPage();
+        }
+        return const ProfilePage();
+      },
     );
   }
 }
@@ -41,138 +73,211 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final username = TextEditingController();
-  final password = TextEditingController();
+  final phone = TextEditingController(text: '+98');
+  final code = TextEditingController();
+  bool sent = false;
+  bool loading = false;
+
+  Future<void> sendCode() async {
+    setState(() => loading = true);
+    try {
+      await supabase.auth.signInWithOtp(phone: phone.text.trim());
+      setState(() => sent = true);
+      message('کد تأیید ارسال شد.');
+    } catch (e) {
+      message('خطا در ارسال کد: $e');
+    } finally {
+      setState(() => loading = false);
+    }
+  }
+
+  Future<void> verifyCode() async {
+    setState(() => loading = true);
+    try {
+      await supabase.auth.verifyOTP(
+        phone: phone.text.trim(),
+        token: code.text.trim(),
+        type: OtpType.sms,
+      );
+    } catch (e) {
+      message('کد تأیید نامعتبر است یا منقضی شده: $e');
+    } finally {
+      setState(() => loading = false);
+    }
+  }
+
+  void message(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            children: [
-              Container(
-                height: 100,
-                width: 100,
-                decoration: BoxDecoration(
-                  color: green.withOpacity(.12),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(color: green, width: 1.5),
-                ),
-                child: const Icon(
-                  Icons.bolt,
-                  size: 65,
-                  color: green,
-                ),
-              ),
-              const SizedBox(height: 25),
-              const Text(
-                'NEXA',
-                style: TextStyle(
-                  fontSize: 42,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 8,
-                  color: green,
-                ),
-              ),
-              const Text(
-                'MESSENGER',
-                style: TextStyle(
-                  letterSpacing: 5,
-                  color: Colors.white70,
-                ),
-              ),
-              const SizedBox(height: 50),
-              const Text(
-                'به دنیای NEXA خوش آمدید',
-                style: TextStyle(fontSize: 21),
-              ),
-              const SizedBox(height: 25),
-              input(username, 'نام کاربری', Icons.person),
-              const SizedBox(height: 15),
-              input(password, 'رمز عبور', Icons.lock,
-                  obscure: true),
-              const SizedBox(height: 25),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: green,
-                    foregroundColor: Colors.black,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(26),
+            child: Column(
+              children: [
+                const Icon(Icons.bolt, color: green, size: 76),
+                const SizedBox(height: 12),
+                const Text(
+                  'NEXA',
+                  style: TextStyle(
+                    color: green,
+                    fontSize: 38,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 7,
                   ),
-                  onPressed: () {
-                    if (username.text.trim().isEmpty ||
-                        password.text.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('اطلاعات ورود را وارد کنید'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => HomePage(
-                          username: username.text.trim(),
-                        ),
-                      ),
-                    );
-                  },
-                  child: const Text(
-                    'ورود به NEXA',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
+                ),
+                const Text('MESSENGER',
+                    style: TextStyle(letterSpacing: 5)),
+                const SizedBox(height: 45),
+                TextField(
+                  controller: phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'شماره موبایل با کد کشور',
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                ),
+                if (sent) ...[
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: code,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'کد پیامکی',
+                      prefixIcon: Icon(Icons.lock),
                     ),
                   ),
+                ],
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: loading
+                        ? null
+                        : sent
+                            ? verifyCode
+                            : sendCode,
+                    child: loading
+                        ? const CircularProgressIndicator()
+                        : Text(sent ? 'تأیید و ورود' : 'ارسال کد ورود'),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 15),
-              TextButton(
-                onPressed: () {},
-                child: const Text(
-                  'ساخت حساب جدید',
-                  style: TextStyle(color: green),
+                const SizedBox(height: 20),
+                const Text(
+                  'ارتباط امن از طریق NEXA',
+                  style: TextStyle(color: Colors.white54),
                 ),
-              ),
-              const SizedBox(height: 30),
-              const Text(
-                'CONNECT • COMMUNICATE • NEXA',
-                style: TextStyle(
-                  color: Colors.white38,
-                  fontSize: 10,
-                  letterSpacing: 2,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
 
-  Widget input(
-    TextEditingController controller,
-    String hint,
-    IconData icon, {
-    bool obscure = false,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      textDirection: TextDirection.rtl,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, color: green),
-        filled: true,
-        fillColor: panel,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none,
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final username = TextEditingController();
+  final displayName = TextEditingController();
+  bool loading = true;
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadProfile();
+  }
+
+  Future<void> loadProfile() async {
+    try {
+      final id = supabase.auth.currentUser!.id;
+      final row = await supabase
+          .from('profiles')
+          .select()
+          .eq('id', id)
+          .maybeSingle();
+
+      if (row != null) {
+        username.text = row['username']?.toString() ?? '';
+        displayName.text = row['display_name']?.toString() ?? '';
+      }
+    } catch (_) {}
+    if (mounted) setState(() => loading = false);
+  }
+
+  Future<void> save() async {
+    if (username.text.trim().isEmpty ||
+        displayName.text.trim().isEmpty) {
+      return;
+    }
+
+    setState(() => saving = true);
+    try {
+      await supabase.from('profiles').upsert({
+        'id': supabase.auth.currentUser!.id,
+        'username': username.text.trim(),
+        'display_name': displayName.text.trim(),
+      });
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomePage()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا در ذخیره پروفایل: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('پروفایل NEXA')),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const Icon(Icons.account_circle, size: 90, color: green),
+            const SizedBox(height: 24),
+            TextField(
+              controller: displayName,
+              decoration: const InputDecoration(labelText: 'نام نمایشی'),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: username,
+              decoration: const InputDecoration(labelText: 'نام کاربری'),
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: saving ? null : save,
+                child: Text(saving ? 'در حال ذخیره...' : 'ذخیره و ادامه'),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -180,323 +285,277 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 class HomePage extends StatefulWidget {
-  final String username;
-
-  const HomePage({super.key, required this.username});
+  const HomePage({super.key});
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  int selected = 0;
+  final title = TextEditingController();
+  bool loading = false;
 
-  final names = [
-    'NEXA Support',
-    'Amir',
-    'Gaming Group',
-    'Technology',
-    'Friends',
-  ];
-
-  final messages = [
-    'به NEXA خوش آمدید',
-    'سلام، خوبی؟',
-    'پیام جدید',
-    'آخرین اخبار فناوری',
-    'آنلاین هستید؟',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: panel,
-          title: const Row(
-            children: [
-              Icon(Icons.bolt, color: green, size: 30),
-              SizedBox(width: 8),
-              Text(
-                'NEXA',
-                style: TextStyle(
-                  color: green,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 3,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.search),
-            ),
-            IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.more_vert),
-            ),
-          ],
-        ),
-        body: IndexedStack(
-          index: selected,
-          children: [
-            chats(),
-            contacts(),
-            groups(),
-            profile(),
-          ],
-        ),
-        bottomNavigationBar: NavigationBar(
-          backgroundColor: panel,
-          indicatorColor: green.withOpacity(.15),
-          selectedIndex: selected,
-          onDestinationSelected: (i) {
-            setState(() => selected = i);
-          },
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.chat_bubble_outline),
-              selectedIcon: Icon(Icons.chat_bubble, color: green),
-              label: 'چت‌ها',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              label: 'مخاطبین',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.groups_outlined),
-              label: 'گروه‌ها',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              label: 'پروفایل',
-            ),
-          ],
-        ),
-        floatingActionButton: selected == 0
-            ? FloatingActionButton(
-                backgroundColor: green,
-                foregroundColor: Colors.black,
-                onPressed: newChat,
-                child: const Icon(Icons.add_comment),
-              )
-            : null,
-      ),
-    );
+  Future<List<Map<String, dynamic>>> chats() async {
+    final result = await supabase
+        .from('chats')
+        .select()
+        .order('created_at', ascending: false);
+    return List<Map<String, dynamic>>.from(result);
   }
 
-  Widget chats() {
-    return ListView(
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(18),
-          child: Text(
-            'پیام‌های شما',
-            style: TextStyle(
-              fontSize: 23,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        for (int i = 0; i < names.length; i++)
-          ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 7,
-            ),
-            leading: CircleAvatar(
-              radius: 27,
-              backgroundColor: green.withOpacity(.13),
-              child: const Icon(
-                Icons.person,
-                color: green,
-              ),
-            ),
-            title: Text(
-              names[i],
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              messages[i],
-              style: const TextStyle(color: Colors.white54),
-            ),
-            trailing: const Icon(
-              Icons.circle,
-              color: green,
-              size: 9,
-            ),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatPage(name: names[i]),
-                ),
-              );
-            },
-          ),
-      ],
-    );
-  }
-
-  Widget contacts() {
-    return const Center(
-      child: Text(
-        'مخاطبین NEXA',
-        style: TextStyle(fontSize: 23, color: green),
-      ),
-    );
-  }
-
-  Widget groups() {
-    return const Center(
-      child: Text(
-        'گروه‌ها و کانال‌ها',
-        style: TextStyle(fontSize: 23, color: green),
-      ),
-    );
-  }
-
-  Widget profile() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const CircleAvatar(
-            radius: 45,
-            backgroundColor: green,
-            child: Icon(Icons.person, size: 55, color: Colors.black),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            widget.username,
-            style: const TextStyle(fontSize: 23),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'NEXA USER',
-            style: TextStyle(color: green, letterSpacing: 3),
-          ),
-          const SizedBox(height: 30),
-          const ListTile(
-            leading: Icon(Icons.settings, color: green),
-            title: Text('تنظیمات'),
-          ),
-          const ListTile(
-            leading: Icon(Icons.shield, color: green),
-            title: Text('امنیت و حریم خصوصی'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void newChat() {
-    showDialog(
+  Future<void> createChat() async {
+    title.clear();
+    final value = await showDialog<String>(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: panel,
+      builder: (context) => AlertDialog(
         title: const Text('گفتگوی جدید'),
-        content: const Text('بخش جستجوی کاربران در نسخه بعدی متصل می‌شود.'),
+        content: TextField(
+          controller: title,
+          decoration: const InputDecoration(labelText: 'عنوان گفتگو'),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('باشه', style: TextStyle(color: green)),
+            child: const Text('لغو'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, title.text.trim()),
+            child: const Text('ساخت'),
           ),
         ],
+      ),
+    );
+
+    if (value == null || value.isEmpty) return;
+
+    setState(() => loading = true);
+    try {
+      final row = await supabase.from('chats').insert({
+        'title': value,
+        'type': 'group',
+        'created_by': supabase.auth.currentUser!.id,
+      }).select().single();
+
+      await supabase.from('chat_members').insert({
+        'chat_id': row['id'],
+        'user_id': supabase.auth.currentUser!.id,
+        'role': 'owner',
+      });
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatPage(
+            chatId: row['id'].toString(),
+            chatTitle: value,
+          ),
+        ),
+      );
+      setState(() {});
+    } catch (e) {
+      showMessage('ساخت گفتگو ناموفق بود: $e');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  void showMessage(String text) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('NEXA',
+            style: TextStyle(color: green, letterSpacing: 4)),
+        actions: [
+          IconButton(
+            onPressed: () async {
+              await supabase.auth.signOut();
+            },
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: green,
+        foregroundColor: Colors.black,
+        onPressed: loading ? null : createChat,
+        child: const Icon(Icons.add_comment),
+      ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: chats(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('خطا در دریافت گفتگوها: ${snapshot.error}'));
+          }
+          final data = snapshot.data ?? [];
+          if (data.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.forum_outlined, size: 70, color: green),
+                  SizedBox(height: 15),
+                  Text('هنوز گفتگویی نداری'),
+                  Text('برای ساخت گفتگو دکمه + را بزن'),
+                ],
+              ),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: () async => setState(() {}),
+            child: ListView.builder(
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                final chat = data[index];
+                return ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: panel,
+                    child: Icon(Icons.forum, color: green),
+                  ),
+                  title: Text(chat['title']?.toString() ?? 'گفتگو'),
+                  subtitle: Text(chat['type']?.toString() ?? ''),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ChatPage(
+                        chatId: chat['id'].toString(),
+                        chatTitle: chat['title']?.toString() ?? 'گفتگو',
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class ChatPage extends StatefulWidget {
-  final String name;
+  final String chatId;
+  final String chatTitle;
 
-  const ChatPage({super.key, required this.name});
+  const ChatPage({
+    super.key,
+    required this.chatId,
+    required this.chatTitle,
+  });
 
   @override
   State<ChatPage> createState() => _ChatPageState();
 }
 
 class _ChatPageState extends State<ChatPage> {
-  final controller = TextEditingController();
-  final messages = <String>[];
+  final input = TextEditingController();
+
+  Future<void> send() async {
+    final text = input.text.trim();
+    if (text.isEmpty) return;
+    input.clear();
+
+    try {
+      await supabase.from('messages').insert({
+        'chat_id': widget.chatId,
+        'sender_id': supabase.auth.currentUser!.id,
+        'content': text,
+        'message_type': 'text',
+      });
+    } catch (e) {
+      input.text = text;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ارسال پیام ناموفق بود: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: panel,
-          title: Text(widget.name),
-          actions: const [
-            Icon(Icons.call, color: green),
-            SizedBox(width: 18),
-            Icon(Icons.videocam, color: green),
-            SizedBox(width: 15),
-          ],
-        ),
-        body: Column(
-          children: [
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(15),
-                itemCount: messages.length,
-                itemBuilder: (_, i) => Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    padding: const EdgeInsets.all(13),
-                    decoration: BoxDecoration(
-                      color: green.withOpacity(.15),
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                    child: Text(messages[i]),
-                  ),
-                ),
-              ),
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.chatTitle)),
+      body: Column(
+        children: [
+          Expanded(
+            child: StreamBuilder<List<Map<String, dynamic>>>(
+              stream: supabase
+                  .from('messages')
+                  .stream(primaryKey: ['id'])
+                  .eq('chat_id', widget.chatId)
+                  .order('created_at'),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('خطا: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final rows = snapshot.data!;
+                if (rows.isEmpty) {
+                  return const Center(child: Text('اولین پیام را بفرست'));
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.all(12),
+                  itemCount: rows.length,
+                  itemBuilder: (context, index) {
+                    final row = rows[index];
+                    final mine = row['sender_id'] ==
+                        supabase.auth.currentUser!.id;
+                    return Align(
+                      alignment: mine
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 5),
+                        padding: const EdgeInsets.all(13),
+                        constraints: const BoxConstraints(maxWidth: 290),
+                        decoration: BoxDecoration(
+                          color: mine ? const Color(0xFF075C38) : panel,
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Text(row['content']?.toString() ?? ''),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              color: panel,
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
-                  const Icon(Icons.attach_file, color: green),
-                  const SizedBox(width: 10),
                   Expanded(
                     child: TextField(
-                      controller: controller,
-                      decoration: InputDecoration(
-                        hintText: 'پیام خود را بنویسید...',
-                        filled: true,
-                        fillColor: background,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(25),
-                          borderSide: BorderSide.none,
-                        ),
+                      controller: input,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(
+                        hintText: 'پیام بنویس...',
                       ),
                     ),
                   ),
                   IconButton(
-                    onPressed: () {
-                      if (controller.text.trim().isEmpty) return;
-                      setState(() {
-                        messages.add(controller.text.trim());
-                        controller.clear();
-                      });
-                    },
-                    icon: const Icon(
-                      Icons.send,
-                      color: green,
-                    ),
+                    onPressed: send,
+                    icon: const Icon(Icons.send, color: green),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
